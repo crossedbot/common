@@ -32,6 +32,18 @@ func Migrate(db *sql.DB, dbName, dbPath, mirgrationsDir, migrationsEnv string) e
 	return goose.RunMigrationsOnDb(c, mirgrationsDir, v, db)
 }
 
+func SaveTx(db *gorm.DB, value interface{}) error {
+	tx := db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if err := tx.Save(value).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
 func driver(name, openStr string) goose.DBDriver {
 	d := goose.DBDriver{
 		Name:    name,
