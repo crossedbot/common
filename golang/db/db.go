@@ -11,15 +11,45 @@ import (
 	_ "github.com/ziutek/mymysql/godrv"
 )
 
-func New(name, path string, maxOpenConnections int) (db *gorm.DB, err error) {
-	if db, err = gorm.Open(name, path); err != nil {
-		return
-	}
-	db.DB().SetMaxOpenConns(maxOpenConnections)
-	return
+type logger interface {
+	Print(v ...interface{})
 }
 
-func Migrate(db *sql.DB, dbName, dbPath, mirgrationsDir, migrationsEnv string) error {
+type Database interface {
+	Close() error
+	LogMode(enable bool)
+	SetLogger(log logger)
+	Migrate(dbName, dbPath, mirgrationsDir, migrationsEnv string) error
+	Create(value interface{}) error
+	CreateTx(value interface{}) error
+	Read(out interface{}, query interface{}, args ...interface{}) error
+	ReadAll(out interface{}) error
+	Update(value interface{}, query interface{}, args ...interface{}) error
+	UpdateTx(value interface{}, query interface{}, args ...interface{}) error
+	Delete(value interface{}, query interface{}, args ...interface{}) error
+	DeleteTx(value interface{}, query interface{}, args ...interface{}) error
+	Save(value interface{}) error
+	SaveTx(value interface{}) error
+}
+
+type database struct {
+	*gorm.DB
+}
+
+func New(name, path string, maxOpenConnections int) (Database, error) {
+	db, err := gorm.Open(name, path)
+	if err != nil {
+		return nil, err
+	}
+	db.DB().SetMaxOpenConns(maxOpenConnections)
+	return &database{db}, nil
+}
+
+func (db *database) db() *sql.DB {
+	return db.DB.DB()
+}
+
+func (db *database) Migrate(dbName, dbPath, mirgrationsDir, migrationsEnv string) error {
 	c := &goose.DBConf{
 		MigrationsDir: mirgrationsDir,
 		Env:           migrationsEnv,
@@ -29,11 +59,83 @@ func Migrate(db *sql.DB, dbName, dbPath, mirgrationsDir, migrationsEnv string) e
 	if err != nil {
 		return err
 	}
-	return goose.RunMigrationsOnDb(c, mirgrationsDir, v, db)
+	return goose.RunMigrationsOnDb(c, mirgrationsDir, v, db.db())
 }
 
-func SaveTx(db *gorm.DB, value interface{}) error {
+func (db *database) Close() error {
+	return db.DB.Close()
+}
+
+func (db *database) Create(value interface{}) error {
+	return db.DB.Create(value).Error
+}
+
+func (db *database) LogMode(enable bool) {
+	db.DB.LogMode(enable)
+}
+
+func (db *database) SetLogger(log logger) {
+	db.DB.SetLogger(log)
+}
+
+func (db *database) CreateTx(value interface{}) error {
 	tx := db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if err := tx.Create(value).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
+func (db *database) Read(out interface{}, query interface{}, args ...interface{}) error {
+	return db.DB.Where(query, args).First(out).Error
+}
+
+func (db *database) ReadAll(out interface{}) error {
+	return db.DB.Find(out).Error
+}
+
+func (db *database) Update(value interface{}, query interface{}, args ...interface{}) error {
+	return db.DB.Where(query, args).Update(value).Error
+}
+
+func (db *database) UpdateTx(value interface{}, query interface{}, args ...interface{}) error {
+	tx := db.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if err := tx.Where(query, args).Update(value).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
+func (db *database) Delete(value interface{}, query interface{}, args ...interface{}) error {
+	return db.DB.Where(query, args).Delete(value).Error
+}
+
+func (db *database) DeleteTx(value interface{}, query interface{}, args ...interface{}) error {
+	tx := db.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if err := tx.Where(query, args).Delete(value).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
+}
+
+func (db *database) Save(value interface{}) error {
+	return db.DB.Save(value).Error
+}
+
+func (db *database) SaveTx(value interface{}) error {
+	tx := db.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
