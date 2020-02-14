@@ -36,7 +36,6 @@ func (d *dispatcher) Start() {
 }
 
 func (d *dispatcher) Stop() {
-	// TODO stop workers
 	for _, w := range d.Workers {
 		w.Stop()
 	}
