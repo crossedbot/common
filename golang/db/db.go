@@ -11,6 +11,8 @@ import (
 	_ "github.com/ziutek/mymysql/godrv"
 )
 
+type TxFunc func() error
+
 type logger interface {
 	Print(v ...interface{})
 }
@@ -30,6 +32,7 @@ type Database interface {
 	DeleteTx(value interface{}, query interface{}, args ...interface{}) error
 	Save(value interface{}) error
 	SaveTx(value interface{}) error
+	Transaction(fn TxFunc) (err error)
 }
 
 type database struct {
@@ -144,6 +147,20 @@ func (db *database) SaveTx(value interface{}) error {
 		return err
 	}
 	return tx.Commit().Error
+}
+
+func (db *database) Transaction(fn TxFunc) (err error) {
+	tx, err := db.DB.DB().Begin()
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+			return
+		}
+	}()
+	return fn()
 }
 
 func driver(name, openStr string) goose.DBDriver {

@@ -123,6 +123,7 @@ func JsonResponse(w http.ResponseWriter, data interface{}, status int) {
 	b, err := json.MarshalIndent(data, "", " ")
 	if err != nil {
 		http.Error(w, "failed to create JSON response", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -166,5 +167,5 @@ func cleanPath(p string) string {
 	if p == "/" {
 		return p
 	}
-	return strings.TrimSuffix("/", p)
+	return strings.TrimSuffix(p, "/")
 }
