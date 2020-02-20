@@ -4,30 +4,22 @@ import (
 	"fmt"
 )
 
-// list of error response status codes
-const (
-	_ = iota
-	ErrorProcessingStatus
-	ErrorNotFoundStatus
-	ErrorNotAllowedStatus
-	ErrorServiceUnavailableStatus
-)
-
-// list of error response messages
-const (
-	ErrorProcessingText         = "failed to process request"
-	ErrorNotFoundText           = "failed to find resource"
-	ErrorNotAllowedText         = "method is not allowed"
-	ErrorServiceUnavailableText = "service is unavailable"
+// list of common error response objects
+var (
+	ErrProcessingRequest    = Error{Code: 1000, Title: "Error Processing Request", Text: "failed to process request"}
+	ErrNotFound             = Error{Code: 1001, Title: "Not Found", Text: "failed to find resource"}
+	ErrNotAllowed           = Error{Code: 1002, Title: "Not Allowed", Text: "method not allowed"}
+	ErrorServiceUnavailable = Error{Code: 1003, Title: "Service Unavailable", Text: "service is unavailable"}
 )
 
 // Error represents a error response.
 type Error struct {
-	Status int    `json:"status"`
-	Text   string `json:"text"`
+	Code  int    `json:"code"`
+	Title string `json:"title"`
+	Text  string `json:"text"`
 }
 
 // String formats an error response as a string.
 func (e Error) String() string {
-	return fmt.Sprintf("[%d] %s", e.Status, e.Text)
+	return fmt.Sprintf("[%d] %s: %s", e.Code, e.Title, e.Text)
 }

@@ -86,10 +86,7 @@ func (s *server) Add(handler Handler, method, path string, settings ...ResponseS
 		if atomic.LoadInt32(&s.run) < 1 {
 			JsonResponse(
 				w,
-				Error{
-					Status: ErrorServiceUnavailableStatus,
-					Text:   ErrorServiceUnavailableText,
-				},
+				ErrorServiceUnavailable,
 				http.StatusServiceUnavailable,
 			)
 		}
@@ -120,12 +117,11 @@ func (s *server) Add(handler Handler, method, path string, settings ...ResponseS
 
 // JsonResponse encodes and writes a JSON response using the given data object.
 func JsonResponse(w http.ResponseWriter, data interface{}, status int) {
-	b, err := json.MarshalIndent(data, "", " ")
+	b, err := json.Marshal(data)
 	if err != nil {
 		http.Error(w, "failed to create JSON response", http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	fmt.Fprintf(w, "%s", b)
@@ -136,28 +132,13 @@ func JsonResponse(w http.ResponseWriter, data interface{}, status int) {
 func router() *httprouter.Router {
 	rtr := httprouter.New()
 	rtr.PanicHandler = func(w http.ResponseWriter, r *http.Request, err interface{}) {
-		JsonResponse(
-			w,
-			Error{
-				Status: ErrorProcessingStatus,
-				Text:   fmt.Sprintf("%s; %v", ErrorProcessingText, err),
-			},
-			http.StatusInternalServerError,
-		)
+		JsonResponse(w, ErrProcessingRequest, http.StatusInternalServerError)
 	}
 	rtr.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		JsonResponse(
-			w,
-			Error{Status: ErrorNotFoundStatus, Text: ErrorNotFoundText},
-			http.StatusInternalServerError,
-		)
+		JsonResponse(w, ErrNotFound, http.StatusInternalServerError)
 	})
 	rtr.MethodNotAllowed = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		JsonResponse(
-			w,
-			Error{Status: ErrorNotAllowedStatus, Text: ErrorNotAllowedText},
-			http.StatusInternalServerError,
-		)
+		JsonResponse(w, ErrNotAllowed, http.StatusInternalServerError)
 	})
 	return rtr
 }
