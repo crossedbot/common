@@ -31,6 +31,7 @@ func (d *dispatcher) Start() {
 	for i := 0; i < d.WorkerCount; i++ {
 		worker := NewWorker(i+1, d.WorkerQueue)
 		worker.Start()
+		d.Workers = append(d.Workers, worker)
 	}
 	go d.process()
 }
