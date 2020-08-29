@@ -26,6 +26,17 @@ type Parameter struct {
 // Parameters represents a list of URL parameters.
 type Parameters []Parameter
 
+// Get returns a parmeter value for the given key. If a key does not exist an
+// empty string is returned.
+func (params Parameters) Get(key string) string {
+	for _, p := range params {
+		if p.Key == key {
+			return p.Value
+		}
+	}
+	return ""
+}
+
 // base returns the Parameters object as a httprouter.Params object.
 func (p Parameters) base() httprouter.Params {
 	params := httprouter.Params{}
