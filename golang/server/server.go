@@ -90,7 +90,7 @@ func (s *server) Add(handler Handler, method, path string, settings ...ResponseS
 				http.StatusServiceUnavailable,
 			)
 		}
-		applyResponseSettings(&w, settings)
+		applyResponseSettings(w, settings)
 		handler(w, r, parameters(p))
 	}
 	path = cleanPath(path)
