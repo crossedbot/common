@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -8,6 +9,14 @@ import (
 
 // Handler represents an HTTP handler method.
 type Handler func(http.ResponseWriter, *http.Request, Parameters)
+
+// NewHandler wraps the HandlerFunc and returns a Handler.
+func NewHandler(handler http.HandlerFunc) Handler {
+	return func(w http.ResponseWriter, r *http.Request, p Parameters) {
+		ctx := context.WithValue(r.Context(), httprouter.ParamsKey, p.base())
+		handler(w, r.WithContext(ctx))
+	}
+}
 
 // base returns the Handler object as a httprouter.Handle object.
 func (h Handler) base() httprouter.Handle {
@@ -25,6 +34,11 @@ type Parameter struct {
 
 // Parameters represents a list of URL parameters.
 type Parameters []Parameter
+
+// GetParameters returns the context values as Parameters.
+func GetParameters(ctx context.Context) Parameters {
+	return parameters(httprouter.ParamsFromContext(ctx))
+}
 
 // Get returns a parmeter value for the given key. If a key does not exist an
 // empty string is returned.
@@ -56,18 +70,18 @@ func parameters(p httprouter.Params) Parameters {
 }
 
 // ResponseSetting can be used to configure a repsonse writer.
-type ResponseSetting func(w *http.ResponseWriter)
+type ResponseSetting func(w http.ResponseWriter)
 
 // SetResponseHeader is a header setting that sets the response header key-value
 // pair.
 func SetResponseHeader(key, value string) ResponseSetting {
-	return func(w *http.ResponseWriter) {
-		(*w).Header().Set(key, value)
+	return func(w http.ResponseWriter) {
+		w.Header().Set(key, value)
 	}
 }
 
 // applyResponseSettings applies all settings to a response writer.
-func applyResponseSettings(w *http.ResponseWriter, settings []ResponseSetting) {
+func applyResponseSettings(w http.ResponseWriter, settings []ResponseSetting) {
 	for _, s := range settings {
 		s(w)
 	}
