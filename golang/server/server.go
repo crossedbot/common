@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/crossedbot/common/golang/logger"
 )
 
 // Server is interface that represents an HTTP server.
@@ -132,6 +134,7 @@ func JsonResponse(w http.ResponseWriter, data interface{}, status int) {
 func router() *httprouter.Router {
 	rtr := httprouter.New()
 	rtr.PanicHandler = func(w http.ResponseWriter, r *http.Request, err interface{}) {
+		logger.Error(fmt.Sprintf("Panic: %s", err))
 		JsonResponse(w, ErrProcessingRequest, http.StatusInternalServerError)
 	}
 	rtr.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
