@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -22,17 +23,20 @@ type Server interface {
 	Stop() error
 	Reload() error
 	Add(handler Handler, method, path string, settings ...ResponseSetting) error
+	SetTlsConfiguration(enable bool, cfg *tls.Config)
 }
 
 // server implements the Server interface.
 type server struct {
-	addr string             // server address
-	rto  int                // reader timeout
-	rtr  *httprouter.Router // router
-	run  int32              // indicates whether the server is running or not atomically
-	srv  *http.Server       // server
-	wg   sync.WaitGroup     // tracks pending requests
-	wto  int                // writer timeout
+	addr       string             // server address
+	rto        int                // reader timeout
+	tlsEnabled bool               // indicates whether connections are tls secure
+	tlsConfig  *tls.Config        // tls configuration
+	rtr        *httprouter.Router // router
+	run        int32              // indicates whether the server is running or not atomically
+	srv        *http.Server       // server
+	wg         sync.WaitGroup     // tracks pending requests
+	wto        int                // writer timeout
 }
 
 // New returns a server at the given address.
@@ -56,6 +60,9 @@ func (s *server) Start() error {
 	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return fmt.Errorf("failed to create listener; %s", err.Error())
+	}
+	if s.tlsEnabled {
+		listener = tls.NewListener(listener, s.tlsConfig)
 	}
 	go s.srv.Serve(listener)
 	atomic.StoreInt32(&s.run, 1)
@@ -115,6 +122,11 @@ func (s *server) Add(handler Handler, method, path string, settings ...ResponseS
 		return fmt.Errorf("method %s is not supported", method)
 	}
 	return nil
+}
+
+func (s *server) SetTlsConfiguration(enabled bool, cfg *tls.Config) {
+	s.tlsEnabled = enabled
+	s.tlsConfig = cfg
 }
 
 // JsonResponse encodes and writes a JSON response using the given data object.
