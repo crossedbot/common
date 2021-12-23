@@ -86,3 +86,11 @@ func applyResponseSettings(w http.ResponseWriter, settings []ResponseSetting) {
 		s(w)
 	}
 }
+
+// Route respresents a HTTP API route
+type Route struct {
+	Handler          Handler
+	Method           string
+	Path             string
+	ResponseSettings []ResponseSetting
+}

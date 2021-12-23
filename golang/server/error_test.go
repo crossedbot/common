@@ -8,7 +8,9 @@ import (
 )
 
 func TestErrorString(t *testing.T) {
-	e := Error{Code: 123, Title: "some title", Text: "some text"}
-	expected := fmt.Sprintf("[%d] %s: %s", e.Code, e.Title, e.Text)
-	require.Equal(t, expected, e.String())
+	code := ErrRequiredParamCode
+	msg := "some message"
+	expected := fmt.Sprintf("%d: %s", code, msg)
+	actual := Error{code, msg}.Error()
+	require.Equal(t, expected, actual)
 }

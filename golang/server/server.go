@@ -93,11 +93,10 @@ func (s *server) Add(handler Handler, method, path string, settings ...ResponseS
 		s.wg.Add(1)
 		defer s.wg.Done()
 		if atomic.LoadInt32(&s.run) < 1 {
-			JsonResponse(
-				w,
-				ErrorServiceUnavailable,
-				http.StatusServiceUnavailable,
-			)
+			JsonResponse(w, Error{
+				Code:    ErrServiceUnavailableCode,
+				Message: "Service is unavailable",
+			}, http.StatusServiceUnavailable)
 		}
 		applyResponseSettings(w, settings)
 		handler(w, r, parameters(p))
@@ -147,13 +146,22 @@ func router() *httprouter.Router {
 	rtr := httprouter.New()
 	rtr.PanicHandler = func(w http.ResponseWriter, r *http.Request, err interface{}) {
 		logger.Error(fmt.Sprintf("Panic: %s", err))
-		JsonResponse(w, ErrProcessingRequest, http.StatusInternalServerError)
+		JsonResponse(w, Error{
+			Code:    ErrProcessingRequestCode,
+			Message: "Failed to process request",
+		}, http.StatusInternalServerError)
 	}
 	rtr.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		JsonResponse(w, ErrNotFound, http.StatusInternalServerError)
+		JsonResponse(w, Error{
+			Code:    ErrNotFoundCode,
+			Message: "Failed to find resource",
+		}, http.StatusInternalServerError)
 	})
 	rtr.MethodNotAllowed = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		JsonResponse(w, ErrNotAllowed, http.StatusInternalServerError)
+		JsonResponse(w, Error{
+			Code:    ErrNotAllowedCode,
+			Message: "Method not allowed",
+		}, http.StatusInternalServerError)
 	})
 	return rtr
 }
