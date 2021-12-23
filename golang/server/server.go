@@ -51,18 +51,27 @@ func New(addr string, readTimeoutSeconds, writeTimeoutSeconds int) Server {
 
 // Start starts the server for accepting requests.
 func (s *server) Start() error {
+	var listener net.Listener
+	var err error
 	s.srv = &http.Server{
 		Addr:         s.addr,
 		Handler:      s.rtr,
 		ReadTimeout:  time.Duration(s.rto) * time.Second,
 		WriteTimeout: time.Duration(s.wto) * time.Second,
 	}
-	listener, err := net.Listen("tcp", s.addr)
-	if err != nil {
-		return fmt.Errorf("failed to create listener; %s", err.Error())
+	if s.tlsEnabled && s.tlsConfig == nil {
+		return fmt.Errorf("TLS enabled but TLS configuration is nil")
 	}
 	if s.tlsEnabled {
 		listener = tls.NewListener(listener, s.tlsConfig)
+	} else {
+		listener, err = net.Listen("tcp", s.addr)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to create listener; %s",
+				err.Error(),
+			)
+		}
 	}
 	go s.srv.Serve(listener)
 	atomic.StoreInt32(&s.run, 1)
