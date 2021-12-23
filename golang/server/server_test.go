@@ -10,7 +10,7 @@ import (
 )
 
 func TestJsonResponse(t *testing.T) {
-	data := Error{Code: 1234, Title: "error", Text: "an error occured"}
+	data := Error{Code: ErrNotAllowedCode, Message: "some message"}
 	b, err := json.Marshal(data)
 	require.Nil(t, err)
 	expectedDataString := string(b)

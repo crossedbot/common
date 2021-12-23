@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -22,17 +23,20 @@ type Server interface {
 	Stop() error
 	Reload() error
 	Add(handler Handler, method, path string, settings ...ResponseSetting) error
+	SetTlsConfiguration(enable bool, cfg *tls.Config)
 }
 
 // server implements the Server interface.
 type server struct {
-	addr string             // server address
-	rto  int                // reader timeout
-	rtr  *httprouter.Router // router
-	run  int32              // indicates whether the server is running or not atomically
-	srv  *http.Server       // server
-	wg   sync.WaitGroup     // tracks pending requests
-	wto  int                // writer timeout
+	addr       string             // server address
+	rto        int                // reader timeout
+	tlsEnabled bool               // indicates whether connections are tls secure
+	tlsConfig  *tls.Config        // tls configuration
+	rtr        *httprouter.Router // router
+	run        int32              // indicates whether the server is running or not atomically
+	srv        *http.Server       // server
+	wg         sync.WaitGroup     // tracks pending requests
+	wto        int                // writer timeout
 }
 
 // New returns a server at the given address.
@@ -47,15 +51,27 @@ func New(addr string, readTimeoutSeconds, writeTimeoutSeconds int) Server {
 
 // Start starts the server for accepting requests.
 func (s *server) Start() error {
+	var listener net.Listener
+	var err error
 	s.srv = &http.Server{
 		Addr:         s.addr,
 		Handler:      s.rtr,
 		ReadTimeout:  time.Duration(s.rto) * time.Second,
 		WriteTimeout: time.Duration(s.wto) * time.Second,
 	}
-	listener, err := net.Listen("tcp", s.addr)
-	if err != nil {
-		return fmt.Errorf("failed to create listener; %s", err.Error())
+	if s.tlsEnabled && s.tlsConfig == nil {
+		return fmt.Errorf("TLS enabled but TLS configuration is nil")
+	}
+	if s.tlsEnabled {
+		listener = tls.NewListener(listener, s.tlsConfig)
+	} else {
+		listener, err = net.Listen("tcp", s.addr)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to create listener; %s",
+				err.Error(),
+			)
+		}
 	}
 	go s.srv.Serve(listener)
 	atomic.StoreInt32(&s.run, 1)
@@ -86,11 +102,10 @@ func (s *server) Add(handler Handler, method, path string, settings ...ResponseS
 		s.wg.Add(1)
 		defer s.wg.Done()
 		if atomic.LoadInt32(&s.run) < 1 {
-			JsonResponse(
-				w,
-				ErrorServiceUnavailable,
-				http.StatusServiceUnavailable,
-			)
+			JsonResponse(w, Error{
+				Code:    ErrServiceUnavailableCode,
+				Message: "Service is unavailable",
+			}, http.StatusServiceUnavailable)
 		}
 		applyResponseSettings(w, settings)
 		handler(w, r, parameters(p))
@@ -117,6 +132,11 @@ func (s *server) Add(handler Handler, method, path string, settings ...ResponseS
 	return nil
 }
 
+func (s *server) SetTlsConfiguration(enabled bool, cfg *tls.Config) {
+	s.tlsEnabled = enabled
+	s.tlsConfig = cfg
+}
+
 // JsonResponse encodes and writes a JSON response using the given data object.
 func JsonResponse(w http.ResponseWriter, data interface{}, status int) {
 	b, err := json.Marshal(data)
@@ -135,13 +155,22 @@ func router() *httprouter.Router {
 	rtr := httprouter.New()
 	rtr.PanicHandler = func(w http.ResponseWriter, r *http.Request, err interface{}) {
 		logger.Error(fmt.Sprintf("Panic: %s", err))
-		JsonResponse(w, ErrProcessingRequest, http.StatusInternalServerError)
+		JsonResponse(w, Error{
+			Code:    ErrProcessingRequestCode,
+			Message: "Failed to process request",
+		}, http.StatusInternalServerError)
 	}
 	rtr.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		JsonResponse(w, ErrNotFound, http.StatusInternalServerError)
+		JsonResponse(w, Error{
+			Code:    ErrNotFoundCode,
+			Message: "Failed to find resource",
+		}, http.StatusInternalServerError)
 	})
 	rtr.MethodNotAllowed = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		JsonResponse(w, ErrNotAllowed, http.StatusInternalServerError)
+		JsonResponse(w, Error{
+			Code:    ErrNotAllowedCode,
+			Message: "Method not allowed",
+		}, http.StatusInternalServerError)
 	})
 	return rtr
 }
