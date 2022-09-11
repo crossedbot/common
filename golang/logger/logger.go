@@ -37,21 +37,21 @@ func SetFile(path string) error {
 }
 
 func Debug(args ...interface{}) {
-	Log.Debug(args)
+	Log.Debug(args...)
 }
 
 func Info(args ...interface{}) {
-	Log.Info(args)
+	Log.Info(args...)
 }
 
 func Error(args ...interface{}) {
-	Log.Error(args)
+	Log.Error(args...)
 }
 
 func Warning(args ...interface{}) {
-	Log.Warning(args)
+	Log.Warning(args...)
 }
 
 func Fatal(args ...interface{}) {
-	Log.Fatal(args)
+	Log.Fatal(args...)
 }
