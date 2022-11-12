@@ -1,9 +1,12 @@
 package crypto
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"strconv"
 	"time"
@@ -13,7 +16,7 @@ import (
 
 const (
 	// Encryption Constants
-	AuthKeyIdSize   = 8
+	AuthKeyIdSize   = 16 // bytes (128 bits)
 	KdfIterations   = 4096
 	ExtendedKeySize = 32
 )
@@ -51,6 +54,9 @@ func NewNonce(sz int) ([]byte, error) {
 
 // ExtendKey returns an extended key using the PBKDF2 function
 func ExtendKey(key, salt []byte) []byte {
+	// TODO make options selectable (like the hash algorithm). Or better yet
+	// just remove this, and use the pbkdf2.Key() function directly.
+
 	return pbkdf2.Key(
 		key,             // password
 		salt,            // salt
@@ -60,8 +66,24 @@ func ExtendKey(key, salt []byte) []byte {
 	)
 }
 
+// Fingerprint returns the SHA256 fingerprint for the given public key.
+func Fingerprint(key crypto.PublicKey) string {
+	var fingerprint string
+	der, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(der)
+	for _, b := range sum {
+		fingerprint += fmt.Sprintf("%02X", b)
+	}
+	return fingerprint
+}
+
 // KeyId returns a AuthKeyIdSize long ID for the given key
 func KeyId(key []byte) []byte {
 	sum := sha256.Sum256(key)
-	return sum[:AuthKeyIdSize]
+	length := len(sum)
+	partSize := AuthKeyIdSize / 2
+	return append(sum[:partSize], sum[length-partSize:]...)
 }
