@@ -18,6 +18,8 @@ import (
 
 var (
 	// Errors
+	ErrIncorrectPassword    = errors.New("Incorrect password")
+	ErrInvalidPadding       = errors.New("Invalid padding")
 	ErrKeyNotFound          = errors.New("Key not found")
 	ErrNotEncryptedPEMBlock = errors.New("PEM block is not encrypted")
 	ErrUnsupportedAlgorithm = errors.New("Unsupported encryption algorithm")
@@ -171,22 +173,28 @@ func DecryptPKCS8Key(data, password []byte) ([]byte, error) {
 	case prf.Algorithm.Equal(OidHMACWithSHA512_256):
 		hashFn = sha512.New512_256
 	}
+	var blockSize int
 	var keyLen int
 	var newCipher func([]byte) (cipher.Block, error)
 	switch {
 	case scheme.Algorithm.Equal(OidDES_EDE3_CBC):
+		blockSize = des.BlockSize
 		keyLen = 8
 		newCipher = des.NewCipher
 	case scheme.Algorithm.Equal(OidDESCBC):
+		blockSize = des.BlockSize
 		keyLen = 24
 		newCipher = des.NewTripleDESCipher
 	case scheme.Algorithm.Equal(OidAES128_CBC_PAD):
+		blockSize = aes.BlockSize
 		keyLen = 16
 		newCipher = aes.NewCipher
 	case scheme.Algorithm.Equal(OidAES192_CBC_PAD):
+		blockSize = aes.BlockSize
 		keyLen = 16
 		newCipher = aes.NewCipher
 	case scheme.Algorithm.Equal(OidAES256_CBC_PAD):
+		blockSize = aes.BlockSize
 		keyLen = 32
 		newCipher = aes.NewCipher
 	default:
@@ -199,5 +207,21 @@ func DecryptPKCS8Key(data, password []byte) ([]byte, error) {
 	}
 	blockMode := cipher.NewCBCDecrypter(block, iv)
 	blockMode.CryptBlocks(pki.EncryptedData, pki.EncryptedData)
+	// The last n bytes of blocks are padded with the value of n; E.g.
+	// [...xxx55555]. If this isn't true we can assume the decryption failed
+	// and the password was wrong. This is based on x509.DecryptPEMBlock.
+	dataLength := len(pki.EncryptedData)
+	if dataLength == 0 || dataLength%blockSize != 0 {
+		return nil, ErrInvalidPadding
+	}
+	last := int(pki.EncryptedData[dataLength-1])
+	if dataLength < last || (last == 0 || last > blockSize) {
+		return nil, ErrIncorrectPassword
+	}
+	for _, val := range pki.EncryptedData[dataLength-last:] {
+		if int(val) != last {
+			return nil, ErrIncorrectPassword
+		}
+	}
 	return pki.EncryptedData, nil
 }
